@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YOLOv11m Security Platform</title>
+<meta name="description" content="Real-time human detection, face recognition and restricted-entry alerting powered by YOLOv11m and InsightFace">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#0a0a0a;color:#e8e8e8;min-height:100vh;padding:2rem}
+.container{max-width:980px;margin:0 auto}
+h1{font-size:24px;font-weight:700;margin-bottom:4px;letter-spacing:-.5px}
+.sub{font-size:13px;color:#666;margin-bottom:1.25rem}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#0f2a1a;color:#4ade80;margin-left:8px;vertical-align:middle;border:1px solid #1a4a2a}
+
+/* server bar */
+.server-bar{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:1.25rem;padding:8px 14px;background:#141414;border:1px solid #222;border-radius:8px}
+.sdot{width:8px;height:8px;border-radius:50%;background:#555;flex-shrink:0;transition:background .3s}
+.sdot.on{background:#4ade80;box-shadow:0 0 6px #4ade80}
+.sdot.off{background:#ef4444;box-shadow:0 0 6px #ef4444}
+
+/* tabs */
+.tabs{display:flex;gap:3px;background:#141414;padding:4px;border-radius:10px;margin-bottom:20px;border:1px solid #1e1e1e}
+.tab{flex:1;text-align:center;padding:10px 6px;font-size:13px;font-weight:500;color:#666;cursor:pointer;border-radius:6px;transition:all .2s;user-select:none}
+.tab:hover{color:#ccc;background:#1e1e1e}
+.tab.active{background:#252525;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* labels */
+.slabel{font-size:10px;color:#444;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:6px;margin-top:1.1rem}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-top:1.1rem;margin-bottom:6px}
+.section-head .slabel{margin:0}
+
+/* upload zone */
+.upload-zone{border:2px dashed #222;border-radius:10px;padding:1.75rem 1.5rem;text-align:center;cursor:pointer;transition:all .2s;position:relative}
+.upload-zone:hover,.upload-zone.drag{border-color:#4ade80;background:#061208}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-zone .icon{font-size:28px;margin-bottom:8px}
+.upload-zone p{font-size:14px;color:#666}
+.upload-zone span{font-size:12px;color:#333;margin-top:3px;display:block}
+.file-info{background:#141414;border:1px solid #222;border-radius:8px;padding:9px 13px;font-size:13px;color:#777;margin-top:8px;display:none;align-items:center;gap:8px}
+.file-info.show{display:flex}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chip{background:#141414;border:1px solid #222;border-radius:20px;padding:4px 12px;font-size:12px;color:#666}
+
+/* config */
+.config-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.cc{background:#141414;border:1px solid #222;border-radius:8px;padding:12px}
+.cc label{font-size:10px;color:#444;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.cc .val{font-size:20px;font-weight:600}
+.cc input[type=range]{width:100%;margin-top:5px;accent-color:#4ade80}
+.cc input[type=text],.cc select{width:100%;padding:8px;background:#0f0f0f;border:1px solid #2a2a2a;color:#e8e8e8;border-radius:6px;margin-top:4px;font-size:13px}
+.cc .hint{font-size:11px;color:#333;margin-top:3px}
+
+/* auto-calibrate */
+.btn-auto{background:#141414;border:1px solid #3730a3;color:#a5b4fc;font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px}
+.btn-auto:hover{background:#1e1b4b}
+.btn-auto:disabled{opacity:.35;cursor:not-allowed}
+.auto-result{background:#0d0d24;border:1px solid #2d2a6a;border-radius:8px;padding:10px 13px;font-size:12px;color:#c7d2fe;margin-top:8px;display:none}
+.auto-result.show{display:block}
+.auto-result ul{margin:4px 0 0 16px;color:#a5b4fc;line-height:1.8}
+
+/* buttons */
+.btn{width:100%;padding:12px;font-size:14px;font-weight:600;border-radius:8px;border:none;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:7px}
+.btn-green{background:#15803d;color:#fff;margin-top:.9rem}
+.btn-green:hover:not(:disabled){background:#166534}
+.btn-green:disabled{background:#141414;color:#333;cursor:not-allowed;border:1px solid #222}
+.btn-blue{background:#1d4ed8;color:#fff}
+.btn-blue:hover{background:#1e40af}
+.btn-red{background:#991b1b;color:#fff}
+.btn-red:hover{background:#7f1d1d}
+.btn-outline{background:transparent;color:#aaa;border:1px solid #2a2a2a}
+.btn-outline:hover{background:#1a1a1a}
+.btn-row{display:flex;gap:8px}
+
+/* zone drawing */
+.zone-wrap{background:#141414;border:1px solid #222;border-radius:10px;padding:12px}
+.zone-wrap p.hint{font-size:12px;color:#555;margin-bottom:8px}
+#zoneCanvas{max-width:100%;border-radius:6px;cursor:crosshair;background:#000;display:none}
+.zone-placeholder{font-size:13px;color:#333;padding:2rem 0;text-align:center}
+.zone-controls{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.zone-controls .btn{width:auto;flex:1;padding:9px 12px;font-size:13px}
+.zone-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.zone-chip{background:#0d1525;border:1px solid #2a3060;color:#a5b4fc;border-radius:20px;padding:5px 8px 5px 12px;font-size:12px;display:flex;align-items:center;gap:6px}
+.zone-chip .x{cursor:pointer;color:#555;font-weight:700;padding:0 3px;transition:color .15s}
+.zone-chip .x:hover{color:#ef4444}
+
+/* progress & live preview */
+.progress-box{background:#141414;border:1px solid #222;border-radius:10px;padding:1.1rem;margin-top:.9rem;display:none}
+.progress-box.show{display:block}
+.prog-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.prog-title{font-size:14px;font-weight:600}
+.fps-badge{font-size:11px;font-weight:600;padding:3px 8px;background:#111;border:1px solid #222;border-radius:12px;color:#aaa}
+.fps-badge.live{border-color:#4ade80;color:#4ade80}
+.pw{background:#1e1e1e;border-radius:20px;height:4px;margin:8px 0;overflow:hidden}
+.pb{height:100%;background:linear-gradient(90deg,#15803d,#4ade80);border-radius:20px;width:0%;transition:width .4s}
+
+.live-preview-box{background:#000;border:1px solid #1e1e1e;border-radius:8px;margin-top:12px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:200px}
+.live-preview-box canvas{max-width:100%;display:block}
+.lp-overlay{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.75);padding:5px 10px;border-radius:6px;font-size:11px;color:#ccc;pointer-events:none;backdrop-filter:blur(4px)}
+.lp-alert{position:absolute;top:10px;right:10px;background:#ef4444;color:#fff;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:700;display:none;animation:pulse 1s ease-in-out infinite}
+.lp-idle{font-size:13px;color:#333;padding:3rem}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.8;transform:scale(1.04)}}
+
+/* results */
+.result-box{margin-top:1.25rem;display:none}
+.result-box.show{display:block}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem}
+.stat{background:#141414;border:1px solid #222;border-radius:8px;padding:10px;text-align:center}
+.stat .num{font-size:20px;font-weight:700;color:#4ade80}
+.stat .lbl{font-size:10px;color:#333;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.video-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:.9rem}
+.vbox{background:#0a0a0a;border:1px solid #1e1e1e;border-radius:10px;overflow:hidden}
+.vbox .vtitle{font-size:10px;color:#444;text-transform:uppercase;letter-spacing:.07em;padding:8px 12px 4px;font-weight:700}
+.vbox.hl{border-color:#15803d}
+.vbox .vtitle.hl{color:#4ade80}
+.vbox video{width:100%;display:block;background:#000;max-height:240px;object-fit:contain}
+.zone-stats{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+.zone-stat-row{display:flex;justify-content:space-between;font-size:12px;background:#141414;border:1px solid #1e1e1e;border-radius:6px;padding:7px 11px}
+.zone-stat-row b{color:#fbbf24}
+
+/* errors */
+.err{background:#1f0d0d;border:1px solid #4a1515;border-radius:8px;padding:11px 13px;font-size:13px;color:#f87171;margin-top:.9rem;display:none}
+.err.show{display:block}
+.warn-bar{background:#1c1500;border:1px solid #3d2e00;border-radius:8px;padding:9px 13px;font-size:12px;color:#fbbf24;margin-top:.9rem;display:none}
+.warn-bar.show{display:block}
+
+/* webcam tab */
+.webcam-container{background:#000;border:1px solid #1e1e1e;border-radius:8px;overflow:hidden;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;position:relative}
+.webcam-container img{width:100%;height:100%;object-fit:cover;display:none}
+.wc-placeholder{color:#333;font-size:14px}
+.wc-err{color:#f87171;font-size:13px;padding:1rem;text-align:center}
+.wc-status{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);padding:4px 10px;border-radius:12px;font-size:11px;color:#4ade80;display:none}
+
+/* enroll tab */
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #1a1a1a;font-size:13px}
+th{color:#444;font-size:10px;text-transform:uppercase;font-weight:700;letter-spacing:.06em}
+.badge-auth{background:#0f1e3a;color:#93c5fd;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;border:1px solid #1a3060}
+.badge-block{background:#2a0a0a;color:#fca5a5;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;border:1px solid #4a1515}
+
+/* alerts tab */
+.alert-row{display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid #141414;animation:slideIn .25s ease}
+.alert-row:first-child{background:#1c0a0a}
+@keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.alert-name{font-weight:700;color:#fca5a5;font-size:14px}
+.alert-name-zone{font-weight:700;color:#fbbf24;font-size:14px}
+.alert-meta{font-size:12px;color:#555}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Security Platform <span class="badge">⚡ YOLOv11m + InsightFace</span></h1>
+  <p class="sub">Human Detection · Face Recognition · Restricted Entry Alerts · Live Processing Preview</p>
+
+  <div class="server-bar">
+    <div class="sdot" id="sDot"></div>
+    <span id="sLabel">Checking server…</span>
+  </div>
+
+  <div class="warn-bar" id="codecWarn">⚠️ ffmpeg not found — annotated video may not play in browser (download still works).</div>
+  <div class="warn-bar" id="faceWarn">⚠️ InsightFace model not ready — face recognition disabled. Ensure internet access on first server start.</div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <div class="tab active" id="tabBtn0" onclick="switchTab(0)">🎬 Video</div>
+    <div class="tab" id="tabBtn1" onclick="switchTab(1)">📷 Webcam</div>
+    <div class="tab" id="tabBtn2" onclick="switchTab(2)">👤 Enroll</div>
+    <div class="tab" id="tabBtn3" onclick="switchTab(3)">🚨 Alerts</div>
+  </div>
+
+  <!-- ══════════════════════════════ TAB 1: VIDEO ══════════════════════════════ -->
+  <div id="tab0" class="tab-content active">
+    <p class="slabel">1 · Upload video</p>
+    <div class="upload-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="video/*">
+      <div class="icon">🎬</div>
+      <p>Drop your video here or click to browse</p>
+      <span>MP4 · AVI · MOV · MKV — any resolution</span>
+    </div>
+    <div class="file-info" id="fileInfo">
+      <span>📄</span><span id="fileName"></span><span id="fileSize" style="color:#333"></span>
+    </div>
+    <div class="chips" id="vChips" style="display:none">
+      <div class="chip" id="resChip"></div>
+      <div class="chip" id="durChip"></div>
+      <div class="chip" id="frmChip"></div>
+    </div>
+
+    <!-- Configure + Auto-calibrate -->
+    <div class="section-head">
+      <p class="slabel" style="margin:0">2 · Configure detection</p>
+      <button class="btn-auto" id="autoBtn" disabled onclick="autoCalibrate()">✨ Auto-detect settings</button>
+    </div>
+    <div class="auto-result" id="autoResult"></div>
+    <div class="config-grid">
+      <div class="cc">
+        <label>Confidence</label><div class="val" id="confVal">0.40</div>
+        <input type="range" min="10" max="90" value="40" step="1" id="confSlider">
+        <div class="hint">Higher = fewer, more certain detections</div>
+      </div>
+      <div class="cc">
+        <label>IoU (NMS)</label><div class="val" id="iouVal">0.45</div>
+        <input type="range" min="10" max="90" value="45" step="1" id="iouSlider">
+        <div class="hint">Lower = fewer overlapping boxes</div>
+      </div>
+      <div class="cc">
+        <label>Box thickness</label><div class="val" id="thickVal">2 px</div>
+        <input type="range" min="1" max="6" value="2" step="1" id="thickSlider">
+      </div>
+      <div class="cc">
+        <label>Label font size</label><div class="val" id="fontVal">16 px</div>
+        <input type="range" min="10" max="28" value="16" step="2" id="fontSlider">
+      </div>
+    </div>
+
+    <!-- Zones -->
+    <p class="slabel">3 · Zones (optional)</p>
+    <div class="zone-wrap">
+      <p class="hint">Click on the frame to drop points (min 3). Click the first point again (or press "Finish") to close the zone. Drag any dot to adjust. Persons whose feet land inside a zone are highlighted separately.</p>
+      <div class="zone-placeholder" id="zonePlaceholder">Upload a video above to draw zones on it</div>
+      <canvas id="zoneCanvas"></canvas>
+      <div class="zone-controls" id="zoneControls" style="display:none">
+        <button class="btn btn-outline" onclick="undoZonePoint()">↶ Undo point</button>
+        <button class="btn btn-blue" onclick="finishZone()">✓ Finish zone</button>
+        <button class="btn btn-outline" onclick="clearZones()">🗑 Clear all</button>
+      </div>
+      <div class="zone-list" id="zoneList"></div>
+    </div>
+
+    <p class="slabel">4 · Run</p>
+    <button class="btn btn-green" id="runBtn" disabled onclick="startProcessing()">🔍 Run YOLOv11m Detection (Live Preview)</button>
+
+    <div class="err" id="errBox"></div>
+
+    <!-- Progress + Live preview -->
+    <div class="progress-box" id="progBox">
+      <div class="prog-header">
+        <div class="prog-title" id="progTitle">Processing…</div>
+        <div class="fps-badge" id="fpsBadge">— fps</div>
+      </div>
+      <div style="font-size:11px;color:#444" id="progSub">Uploading…</div>
+      <div class="pw"><div class="pb" id="pb"></div></div>
+
+      <div class="live-preview-box" id="liveBox">
+        <div class="lp-idle" id="lpIdle">⏳ Waiting for first annotated frame…</div>
+        <canvas id="liveCanvas" style="display:none"></canvas>
+        <div class="lp-overlay" id="lpOverlay" style="display:none"></div>
+        <div class="lp-alert" id="lpAlert">🚨 BLOCKLIST DETECTED</div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="result-box" id="resultBox">
+      <div style="font-size:16px;font-weight:600;margin-bottom:10px">✅ Processing complete</div>
+      <div class="stats">
+        <div class="stat"><div class="num" id="rFrames">—</div><div class="lbl">Frames</div></div>
+        <div class="stat"><div class="num" id="rDet">—</div><div class="lbl">Detections</div></div>
+        <div class="stat"><div class="num" id="rPeak">—</div><div class="lbl">Peak</div></div>
+        <div class="stat"><div class="num" id="rCoords">—</div><div class="lbl">CSV rows</div></div>
+      </div>
+      <div class="zone-stats" id="zoneStats"></div>
+      <div class="video-grid">
+        <div class="vbox"><div class="vtitle">📹 Original</div><video id="origVid" controls></video></div>
+        <div class="vbox hl"><div class="vtitle hl">🟢 Annotated output</div><video id="outVid" controls></video></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-green" style="flex:1" onclick="dlVideo()">⬇️ Download video</button>
+        <button class="btn btn-blue" style="flex:1" onclick="dlCSV()">📊 Download CSV</button>
+        <button class="btn btn-outline" style="flex:0 0 auto;padding:12px 16px" onclick="resetApp()" title="New video">↺</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════ TAB 2: WEBCAM ══════════════════════════════ -->
+  <div id="tab1" class="tab-content">
+    <p class="slabel">Live camera feed with detection overlay</p>
+    <div class="webcam-container" id="wcContainer">
+      <div class="wc-placeholder" id="wcPlaceholder">Camera offline</div>
+      <img id="wcImg" alt="Live Feed">
+      <div class="wc-status" id="wcStatus">🔴 LIVE</div>
+    </div>
+    <div style="font-size:12px;color:#444;margin-top:6px" id="wcErr"></div>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn btn-blue" id="btnWcStart" onclick="startWebcam()">▶ Start Camera</button>
+      <button class="btn btn-outline" id="btnWcStop" onclick="stopWebcam()" disabled>⏹ Stop</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════ TAB 3: ENROLL ══════════════════════════════ -->
+  <div id="tab2" class="tab-content">
+    <p class="slabel">Add new person</p>
+    <div class="config-grid" style="grid-template-columns:1fr 1fr 1fr;gap:10px">
+      <div class="cc"><label>Full name</label><input type="text" id="enrName" placeholder="e.g. John Doe"></div>
+      <div class="cc">
+        <label>Status</label>
+        <select id="enrStatus">
+          <option value="authorized">✅ Authorized</option>
+          <option value="blocklisted">🚫 Blocklisted</option>
+        </select>
+      </div>
+      <div class="cc"><label>Photo (clear face shot)</label><input type="file" id="enrPhoto" accept="image/*" style="margin-top:10px;font-size:12px;color:#aaa"></div>
+    </div>
+    <button class="btn btn-blue" style="margin-top:10px" onclick="enrollPerson()">➕ Enroll Person</button>
+    <div id="enrMsg" style="margin-top:8px;font-size:13px;color:#4ade80;min-height:20px"></div>
+
+    <p class="slabel">Enrolled persons</p>
+    <table>
+      <thead><tr><th>#</th><th>Name</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody id="peopleTable"><tr><td colspan="4" style="color:#333;padding:20px;text-align:center">No persons enrolled yet</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- ══════════════════════════════ TAB 4: ALERTS ══════════════════════════════ -->
+  <div id="tab3" class="tab-content">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div>
+        <div style="font-size:16px;font-weight:600">🚨 Alert Feed</div>
+        <div style="font-size:12px;color:#444;margin-top:2px">Blocklisted persons detected in real-time via SSE</div>
+      </div>
+      <button class="btn btn-outline" style="width:auto;padding:6px 14px;font-size:12px" onclick="clearAlerts()">Clear all</button>
+    </div>
+    <div id="alertsFeed" style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:8px;min-height:120px">
+      <div style="padding:2rem;text-align:center;color:#333;font-size:13px" id="alertEmpty">No alerts yet — system is monitoring</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = window.location.origin;
+let selFile = null, origURL = null, jobId = null, resBlob = null, busy = false;
+
+// ── Sliders ────────────────────────────────────────────────────────────────
+document.getElementById('confSlider').oninput = e => document.getElementById('confVal').textContent = (e.target.value/100).toFixed(2);
+document.getElementById('iouSlider').oninput  = e => document.getElementById('iouVal').textContent  = (e.target.value/100).toFixed(2);
+document.getElementById('thickSlider').oninput= e => document.getElementById('thickVal').textContent= e.target.value+' px';
+document.getElementById('fontSlider').oninput = e => document.getElementById('fontVal').textContent = e.target.value+' px';
+
+// ── Server health ───────────────────────────────────────────────────────────
+async function checkServer() {
+  if (busy) return;
+  const dot = document.getElementById('sDot'), lbl = document.getElementById('sLabel');
+  try {
+    const r = await fetch(BASE+'/health', {signal: AbortSignal.timeout(3000)});
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    dot.className = 'sdot on';
+    lbl.textContent = `Server online · CUDA: ${d.cuda?'✅ GPU':'⚠️ CPU'} · ffmpeg: ${d.ffmpeg?'✅':'❌'} · face model: ${d.insightface?'✅':'❌'}`;
+    document.getElementById('codecWarn').style.display = d.ffmpeg ? 'none' : 'block';
+    document.getElementById('faceWarn').style.display  = d.insightface ? 'none' : 'block';
+  } catch {
+    dot.className = 'sdot off';
+    lbl.textContent = 'Server offline — run: python app.py in your terminal';
+  }
+}
+checkServer();
+setInterval(checkServer, 10000);
+
+// ── Tab switching ───────────────────────────────────────────────────────────
+function switchTab(idx) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  document.querySelectorAll('.tab-content').forEach((c,i) => c.classList.toggle('active', i===idx));
+  if (idx === 2) loadPeople();
+  if (idx === 3) loadAlerts();
+}
+
+// ── File upload / drag-drop ─────────────────────────────────────────────────
+const dz = document.getElementById('dropZone'), fi = document.getElementById('fileInput');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+fi.addEventListener('change', () => { if (fi.files[0]) handleFile(fi.files[0]); });
+
+function handleFile(f) {
+  selFile = f;
+  origURL = URL.createObjectURL(f);
+  document.getElementById('fileName').textContent = f.name;
+  document.getElementById('fileSize').textContent = ' (' + (f.size/1048576).toFixed(1) + ' MB)';
+  document.getElementById('fileInfo').classList.add('show');
+  clearZones();
+  document.getElementById('autoResult').classList.remove('show');
+
+  const v = document.createElement('video');
+  v.src = origURL; v.muted = true;
+  v.onloadedmetadata = () => {
+    document.getElementById('resChip').textContent = '🖥 ' + v.videoWidth + '×' + v.videoHeight;
+    const d = Math.round(v.duration);
+    document.getElementById('durChip').textContent = '⏱ ' + Math.floor(d/60) + ':' + String(d%60).padStart(2,'0');
+    document.getElementById('frmChip').textContent = '🎞 ~' + Math.round(v.duration * (v.videoWidth > 1280 ? 25 : 30)) + ' frames';
+    document.getElementById('vChips').style.display = 'flex';
+    v.currentTime = Math.min(v.duration * 0.3, v.duration - 0.1);
+  };
+  v.onseeked = () => {
+    const off = document.createElement('canvas');
+    off.width = v.videoWidth; off.height = v.videoHeight;
+    off.getContext('2d').drawImage(v, 0, 0, off.width, off.height);
+    const img = new Image();
+    img.onload = () => {
+      bgImage = img;
+      const wrapW = document.querySelector('.zone-wrap').clientWidth - 24;
+      const scale = Math.min(wrapW / img.width, 1);
+      zoneCanvas.width  = img.width  * scale;
+      zoneCanvas.height = img.height * scale;
+      zoneCanvas.style.display = 'block';
+      document.getElementById('zonePlaceholder').style.display = 'none';
+      document.getElementById('zoneControls').style.display = 'flex';
+      redrawZoneCanvas();
+    };
+    img.src = off.toDataURL('image/jpeg', 0.85);
+  };
+  document.getElementById('runBtn').disabled  = false;
+  document.getElementById('autoBtn').disabled = false;
+  document.getElementById('errBox').classList.remove('show');
+}
+
+// ── Zone drawing ────────────────────────────────────────────────────────────
+let zones = [], currentPoints = [], bgImage = null, draggingPoint = null;
+const DRAG_RADIUS = 10;
+const zoneCanvas = document.getElementById('zoneCanvas');
+const zctx = zoneCanvas.getContext('2d');
+
+function redrawZoneCanvas() {
+  if (!bgImage) return;
+  zctx.clearRect(0, 0, zoneCanvas.width, zoneCanvas.height);
+  zctx.drawImage(bgImage, 0, 0, zoneCanvas.width, zoneCanvas.height);
+  const toPx = p => [p[0] * zoneCanvas.width, p[1] * zoneCanvas.height];
+
+  // Draw finished zones
+  zones.forEach(z => {
+    if (!z.points.length) return;
+    zctx.beginPath();
+    z.points.forEach((p, i) => { const [x,y] = toPx(p); i===0 ? zctx.moveTo(x,y) : zctx.lineTo(x,y); });
+    zctx.closePath();
+    zctx.strokeStyle = '#00dcff'; zctx.lineWidth = 2; zctx.stroke();
+    zctx.fillStyle = 'rgba(0,220,255,0.10)'; zctx.fill();
+    const [lx, ly] = toPx(z.points[0]);
+    zctx.fillStyle = '#00dcff'; zctx.font = 'bold 13px system-ui'; zctx.fillText(z.name, lx + 6, ly - 8);
+    // Draw draggable dots on finished zone
+    z.points.forEach(p => {
+      const [x, y] = toPx(p);
+      zctx.beginPath(); zctx.arc(x, y, 5, 0, Math.PI*2);
+      zctx.fillStyle = '#00dcff'; zctx.fill();
+      zctx.strokeStyle = '#fff'; zctx.lineWidth = 1.5; zctx.stroke();
+    });
+  });
+
+  // Draw zone currently being drawn
+  if (currentPoints.length) {
+    zctx.beginPath();
+    currentPoints.forEach((p, i) => { const [x,y] = toPx(p); i===0 ? zctx.moveTo(x,y) : zctx.lineTo(x,y); });
+    if (currentPoints.length >= 3) {
+      zctx.closePath();
+      zctx.fillStyle = 'rgba(74,222,128,0.10)'; zctx.fill();
+    }
+    zctx.strokeStyle = '#4ade80'; zctx.lineWidth = 2; zctx.stroke();
+    // Draw dots for in-progress points
+    currentPoints.forEach((p, idx) => {
+      const [x, y] = toPx(p);
+      zctx.beginPath(); zctx.arc(x, y, idx===0 && currentPoints.length>=3 ? 7 : 5, 0, Math.PI*2);
+      zctx.fillStyle = idx===0 && currentPoints.length>=3 ? '#facc15' : '#4ade80'; zctx.fill();
+      zctx.strokeStyle = '#fff'; zctx.lineWidth = 1.5; zctx.stroke();
+    });
+  }
+}
+
+function getPointNear(xPx, yPx) {
+  const toPx = p => [p[0]*zoneCanvas.width, p[1]*zoneCanvas.height];
+  for (let i = 0; i < currentPoints.length; i++) {
+    const [px,py] = toPx(currentPoints[i]);
+    if (Math.hypot(px-xPx, py-yPx) <= DRAG_RADIUS) return { zIdx:-1, pIdx:i };
+  }
+  for (let z = 0; z < zones.length; z++) {
+    for (let i = 0; i < zones[z].points.length; i++) {
+      const [px,py] = toPx(zones[z].points[i]);
+      if (Math.hypot(px-xPx, py-yPx) <= DRAG_RADIUS) return { zIdx:z, pIdx:i };
+    }
+  }
+  return null;
+}
+
+zoneCanvas.addEventListener('mousedown', e => {
+  if (!bgImage) return;
+  const rect = zoneCanvas.getBoundingClientRect();
+  const xPx = e.clientX - rect.left;
+  const yPx = e.clientY - rect.top;
+  const near = getPointNear(xPx, yPx);
+  if (near) {
+    // Clicking the first in-progress point with ≥3 points = close the zone
+    if (near.zIdx === -1 && near.pIdx === 0 && currentPoints.length >= 3) { finishZone(); return; }
+    draggingPoint = near;
+  } else {
+    currentPoints.push([xPx/rect.width, yPx/rect.height]);
+    redrawZoneCanvas();
+  }
+});
+
+zoneCanvas.addEventListener('mousemove', e => {
+  if (!bgImage) return;
+  const rect = zoneCanvas.getBoundingClientRect();
+  const xPx = e.clientX - rect.left, yPx = e.clientY - rect.top;
+  if (!draggingPoint) {
+    zoneCanvas.style.cursor = getPointNear(xPx,yPx) ? 'move' : 'crosshair';
+  } else {
+    const x = Math.max(0, Math.min(1, xPx/rect.width));
+    const y = Math.max(0, Math.min(1, yPx/rect.height));
+    if (draggingPoint.zIdx === -1) currentPoints[draggingPoint.pIdx] = [x,y];
+    else zones[draggingPoint.zIdx].points[draggingPoint.pIdx] = [x,y];
+    redrawZoneCanvas();
+  }
+});
+zoneCanvas.addEventListener('mouseup',    () => draggingPoint = null);
+zoneCanvas.addEventListener('mouseleave', () => draggingPoint = null);
+
+function undoZonePoint() { currentPoints.pop(); redrawZoneCanvas(); }
+function finishZone() {
+  if (currentPoints.length < 3) { alert('Add at least 3 points before finishing a zone.'); return; }
+  const name = prompt('Name this zone:', 'Zone ' + (zones.length+1)) || ('Zone ' + (zones.length+1));
+  zones.push({ name, points: currentPoints.slice() });
+  currentPoints = [];
+  redrawZoneCanvas();
+  renderZoneList();
+}
+function removeZone(i) { zones.splice(i,1); redrawZoneCanvas(); renderZoneList(); }
+function clearZones() { zones = []; currentPoints = []; redrawZoneCanvas(); renderZoneList(); }
+function renderZoneList() {
+  const el = document.getElementById('zoneList');
+  el.innerHTML = zones.map((z,i) => `<div class="zone-chip">${z.name}<span class="x" onclick="removeZone(${i})">✕</span></div>`).join('');
+}
+
+// ── Auto-calibrate ──────────────────────────────────────────────────────────
+async function autoCalibrate() {
+  if (!selFile) return;
+  const btn = document.getElementById('autoBtn'), rb = document.getElementById('autoResult');
+  busy = true; btn.disabled = true; btn.textContent = '⏳ Analyzing…';
+  rb.innerHTML = '<span style="color:#666">Sampling frames — this takes a few seconds on CPU…</span>';
+  rb.classList.add('show');
+  try {
+    const fd = new FormData(); fd.append('video', selFile);
+    const res = await fetch(BASE+'/auto_calibrate', {method:'POST', body:fd});
+    if (!res.ok) throw new Error('Server error ' + res.status);
+    const d = await res.json();
+    // Apply to sliders
+    document.getElementById('confSlider').value = Math.round(d.recommended_conf*100);
+    document.getElementById('confVal').textContent = d.recommended_conf.toFixed(2);
+    document.getElementById('iouSlider').value  = Math.round(d.recommended_iou*100);
+    document.getElementById('iouVal').textContent  = d.recommended_iou.toFixed(2);
+    rb.innerHTML = `<b>Recommended: conf ${d.recommended_conf.toFixed(2)}, IoU ${d.recommended_iou.toFixed(2)}</b><br>
+      <i style="color:#555">Based on: ${d.details.avg_persons_per_frame} avg persons/frame · brightness ${d.details.avg_brightness.toFixed(0)}/255 · ${d.details.sampled_frames} sampled frames</i>
+      <ul>${d.reasoning.map(r=>`<li>${r}</li>`).join('')}</ul>
+      <div style="margin-top:4px;color:#444">Sliders updated — feel free to fine-tune.</div>`;
+  } catch(err) {
+    rb.innerHTML = `<b style="color:#f87171">Auto-detect failed:</b> ${err.message}`;
+  } finally {
+    busy = false; btn.disabled = false; btn.textContent = '✨ Auto-detect settings';
+  }
+}
+
+// ── Processing flow (SSE live preview) ─────────────────────────────────────
+let eventSource = null, statusInterval = null;
+const liveCanvas = document.getElementById('liveCanvas');
+const lctx = liveCanvas.getContext('2d');
+let pendingFrame = null;
+
+// requestAnimationFrame loop for smooth canvas painting
+function renderLoop() {
+  if (pendingFrame !== null) {
+    const src = pendingFrame; pendingFrame = null;
+    const img = new Image();
+    img.onload = () => {
+      liveCanvas.width  = img.naturalWidth;
+      liveCanvas.height = img.naturalHeight;
+      lctx.drawImage(img, 0, 0);
+    };
+    img.src = 'data:image/jpeg;base64,' + src;
+  }
+  requestAnimationFrame(renderLoop);
+}
+requestAnimationFrame(renderLoop);
+
+async function startProcessing() {
+  if (!selFile) return;
+  busy = true;
+  document.getElementById('errBox').classList.remove('show');
+  document.getElementById('resultBox').classList.remove('show');
+  document.getElementById('progBox').classList.add('show');
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('progTitle').textContent = 'Uploading video…';
+  document.getElementById('pb').style.width = '0%';
+
+  // Reset live preview
+  liveCanvas.style.display = 'none';
+  document.getElementById('lpIdle').style.display = 'block';
+  document.getElementById('lpOverlay').style.display = 'none';
+
+  const fd = new FormData();
+  fd.append('video', selFile);
+  fd.append('conf',       document.getElementById('confSlider').value/100);
+  fd.append('iou',        document.getElementById('iouSlider').value/100);
+  fd.append('thickness',  document.getElementById('thickSlider').value);
+  fd.append('font_size',  document.getElementById('fontSlider').value);
+  fd.append('zones', JSON.stringify(zones));
+
+  try {
+    const res = await fetch(BASE+'/process/start', {method:'POST', body:fd});
+    if (!res.ok) throw new Error('Server error ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    jobId = data.job_id;
+
+    // Subscribe to SSE frame stream
+    eventSource = new EventSource(`${BASE}/process/stream/${jobId}`);
+
+    eventSource.addEventListener('frame', e => {
+      // Show canvas on first frame
+      if (liveCanvas.style.display === 'none') {
+        document.getElementById('lpIdle').style.display = 'none';
+        liveCanvas.style.display = 'block';
+        document.getElementById('lpOverlay').style.display = 'block';
+      }
+      pendingFrame = e.data; // rAF loop will paint it
+    });
+
+    eventSource.addEventListener('stats', e => {
+      const s = JSON.parse(e.data);
+      const pct = s.total ? Math.round(s.frame/s.total*100) : 0;
+      document.getElementById('pb').style.width = pct + '%';
+      document.getElementById('progTitle').textContent = `Processing… ${pct}%`;
+      document.getElementById('lpOverlay').textContent =
+        `Frame ${s.frame}/${s.total} · Persons: ${s.count}` +
+        (s.zones && Object.keys(s.zones).length ? ' · ' + Object.entries(s.zones).map(([k,v])=>`${k}:${v}`).join(' ') : '');
+      if (s.fps) {
+        const badge = document.getElementById('fpsBadge');
+        badge.textContent = s.fps + ' fps';
+        badge.className = 'fps-badge' + (s.fps >= 5 ? ' live' : '');
+      }
+    });
+
+    eventSource.onerror = () => { if (eventSource) eventSource.close(); };
+
+    // Poll status once per second for progress bar + done detection
+    statusInterval = setInterval(async () => {
+      try {
+        const sr = await fetch(`${BASE}/process/status/${jobId}`);
+        const status = await sr.json();
+        if (status.encoding) {
+          document.getElementById('progTitle').textContent = '🔄 Re-encoding to H264…';
+          document.getElementById('pb').style.width = '95%';
+        }
+        if (status.done) {
+          clearInterval(statusInterval); statusInterval = null;
+          if (eventSource) { eventSource.close(); eventSource = null; }
+          await finishJob();
+        }
+      } catch(e) { /* ignore transient errors */ }
+    }, 1000);
+
+  } catch(err) {
+    showErr(err.message);
+  }
+}
+
+async function finishJob() {
+  document.getElementById('progTitle').textContent = '✅ Done!';
+  document.getElementById('pb').style.width = '100%';
+  try {
+    const res = await fetch(`${BASE}/process/result/${jobId}`);
+    if (!res.ok) throw new Error('Result fetch failed');
+    const blob = await res.blob();
+    resBlob = blob;
+
+    const statsStr = res.headers.get('X-Stats');
+    if (statsStr) {
+      const s = JSON.parse(statsStr);
+      document.getElementById('rFrames').textContent = s.frames || '—';
+      document.getElementById('rDet').textContent    = s.total_detections || '—';
+      document.getElementById('rPeak').textContent   = s.peak_per_frame || '—';
+      document.getElementById('rCoords').textContent = s.coords_rows || '—';
+      const zsEl = document.getElementById('zoneStats'); zsEl.innerHTML = '';
+      (s.zones||[]).forEach(z => {
+        const row = document.createElement('div'); row.className = 'zone-stat-row';
+        row.innerHTML = `<span>📍 ${z.name}</span><span>peak <b>${z.peak}</b> · occupied <b>${z.total_frames_occupied}</b> frames</span>`;
+        zsEl.appendChild(row);
+      });
+    }
+
+    document.getElementById('origVid').src = origURL;
+    document.getElementById('outVid').src  = URL.createObjectURL(blob);
+
+    document.getElementById('progBox').classList.remove('show');
+    document.getElementById('resultBox').classList.add('show');
+  } catch(err) {
+    showErr('Error loading final result: ' + err.message);
+  }
+  busy = false;
+  document.getElementById('runBtn').disabled = false;
+}
+
+function showErr(msg) {
+  if (statusInterval) { clearInterval(statusInterval); statusInterval = null; }
+  if (eventSource)    { eventSource.close(); eventSource = null; }
+  document.getElementById('errBox').textContent = '❌ ' + msg;
+  document.getElementById('errBox').classList.add('show');
+  document.getElementById('progBox').classList.remove('show');
+  document.getElementById('runBtn').disabled = false;
+  busy = false;
+}
+
+function dlVideo() {
+  if (!resBlob) return;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(resBlob);
+  a.download = 'detected_' + (selFile?.name||'output.mp4'); a.click();
+}
+function dlCSV() { if (jobId) window.open(`${BASE}/coords/${jobId}`, '_blank'); }
+function resetApp() {
+  if (eventSource)    { eventSource.close(); eventSource = null; }
+  if (statusInterval) { clearInterval(statusInterval); statusInterval = null; }
+  selFile=null; resBlob=null; origURL=null; jobId=null; busy=false;
+  document.getElementById('fileInfo').classList.remove('show');
+  document.getElementById('vChips').style.display = 'none';
+  document.getElementById('progBox').classList.remove('show');
+  document.getElementById('resultBox').classList.remove('show');
+  document.getElementById('errBox').classList.remove('show');
+  document.getElementById('autoResult').classList.remove('show');
+  document.getElementById('runBtn').disabled  = true;
+  document.getElementById('autoBtn').disabled = true;
+  document.getElementById('pb').style.width   = '0%';
+  bgImage = null;
+  zoneCanvas.style.display = 'none';
+  document.getElementById('zoneControls').style.display = 'none';
+  document.getElementById('zonePlaceholder').style.display = 'block';
+  clearZones(); fi.value = '';
+  liveCanvas.style.display = 'none';
+  document.getElementById('lpIdle').style.display = 'block';
+}
+
+// ── Webcam ──────────────────────────────────────────────────────────────────
+async function startWebcam() {
+  document.getElementById('wcErr').textContent = '';
+  document.getElementById('btnWcStart').disabled = true;
+  document.getElementById('btnWcStart').textContent = '⏳ Starting…';
+
+  try {
+    // Send current detection config so webcam uses the same pipeline settings
+    const fd = new FormData();
+    fd.append('conf', document.getElementById('confSlider').value / 100);
+    fd.append('iou', document.getElementById('iouSlider').value / 100);
+    fd.append('thickness', document.getElementById('thickSlider').value);
+    fd.append('font_size', document.getElementById('fontSlider').value);
+    fd.append('zones', JSON.stringify(zones));
+
+    const r = await fetch(`${BASE}/webcam/start`, {method:'POST', body: fd});
+    const data = await r.json();
+    if (!r.ok || data.error) throw new Error(data.error || 'Failed to start camera');
+
+    const img = document.getElementById('wcImg');
+    img.src = `${BASE}/webcam/stream?t=${Date.now()}`;
+    img.style.display = 'block';
+    document.getElementById('wcPlaceholder').style.display = 'none';
+    document.getElementById('wcStatus').style.display = 'block';
+    document.getElementById('btnWcStop').disabled = false;
+    document.getElementById('btnWcStart').textContent = '▶ Start Camera';
+  } catch(err) {
+    document.getElementById('wcErr').textContent = '❌ ' + err.message;
+    document.getElementById('btnWcStart').disabled = false;
+    document.getElementById('btnWcStart').textContent = '▶ Start Camera';
+  }
+}
+
+async function stopWebcam() {
+  await fetch(`${BASE}/webcam/stop`, {method:'POST'});
+  const img = document.getElementById('wcImg');
+  img.src = ''; img.style.display = 'none';
+  document.getElementById('wcPlaceholder').style.display = 'block';
+  document.getElementById('wcStatus').style.display = 'none';
+  document.getElementById('wcErr').textContent = '';
+  document.getElementById('btnWcStart').disabled = false;
+  document.getElementById('btnWcStop').disabled  = true;
+}
+
+// ── Enroll ──────────────────────────────────────────────────────────────────
+async function enrollPerson() {
+  const name   = document.getElementById('enrName').value.trim();
+  const status = document.getElementById('enrStatus').value;
+  const file   = document.getElementById('enrPhoto').files[0];
+  const msgEl  = document.getElementById('enrMsg');
+  if (!name || !file) { msgEl.style.color='#f87171'; msgEl.textContent='⚠️ Name and photo are required.'; return; }
+
+  msgEl.style.color='#888'; msgEl.textContent='Enrolling…';
+  const fd = new FormData(); fd.append('name',name); fd.append('status',status); fd.append('photo',file);
+  try {
+    const r = await fetch(`${BASE}/enroll`, {method:'POST', body:fd});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    msgEl.style.color='#4ade80'; msgEl.textContent=`✅ ${name} enrolled as ${status}`;
+    document.getElementById('enrName').value='';
+    document.getElementById('enrPhoto').value='';
+    setTimeout(()=>msgEl.textContent='', 4000);
+    loadPeople();
+  } catch(e) {
+    msgEl.style.color='#f87171'; msgEl.textContent='❌ ' + e.message;
+  }
+}
+
+async function loadPeople() {
+  const r = await fetch(`${BASE}/people`);
+  const people = await r.json();
+  const tb = document.getElementById('peopleTable');
+  if (!people.length) { tb.innerHTML='<tr><td colspan="4" style="color:#333;padding:20px;text-align:center">No persons enrolled yet</td></tr>'; return; }
+  tb.innerHTML = people.map((p,i) => `
+    <tr>
+      <td style="color:#333">${i+1}</td>
+      <td style="font-weight:600">${p.name}</td>
+      <td><span class="${p.status==='blocklisted'?'badge-block':'badge-auth'}">${p.status==='blocklisted'?'🚫 Blocklisted':'✅ Authorized'}</span></td>
+      <td><button class="btn btn-red" style="width:auto;padding:5px 10px;font-size:12px" onclick="deletePerson(${p.id})">Delete</button></td>
+    </tr>`).join('');
+}
+
+async function deletePerson(id) {
+  if (!confirm('Delete this person?')) return;
+  await fetch(`${BASE}/people/${id}`, {method:'DELETE'});
+  loadPeople();
+}
+
+// ── Alerts (SSE with auto-reconnect) ───────────────────────────────────────
+let alertSource = null;
+
+function connectAlertSSE() {
+  if (alertSource) { alertSource.close(); alertSource = null; }
+  alertSource = new EventSource(`${BASE}/alerts/stream`);
+  alertSource.onmessage = e => {
+    try {
+      const alert = JSON.parse(e.data);
+      prependAlert(alert);
+      // Flash badge in video tab if processing is active
+      const badge = document.getElementById('lpAlert');
+      const isZone = alert.alert_type === 'zone_intrusion';
+      badge.textContent = isZone ? `⚠️ ZONE INTRUSION: ${alert.person_name.replace('Zone Intrusion: ','')}` : `🚨 ${alert.person_name} DETECTED`;
+      badge.style.background = isZone ? '#d97706' : '#ef4444';
+      badge.style.display = 'block';
+      setTimeout(() => badge.style.display = 'none', 3000);
+      // Switch to alerts tab briefly to show badge count
+      document.getElementById('tabBtn3').textContent = '🚨 Alerts 🔴';
+    } catch(e) {}
+  };
+  alertSource.onerror = () => {
+    // Auto-reconnect after 3 seconds
+    if (alertSource) { alertSource.close(); alertSource = null; }
+    setTimeout(connectAlertSSE, 3000);
+  };
+}
+connectAlertSSE(); // Connect immediately on page load
+
+function prependAlert(alert) {
+  const feed = document.getElementById('alertsFeed');
+  document.getElementById('alertEmpty').style.display = 'none';
+  const isZone = alert.alert_type === 'zone_intrusion';
+  const icon = isZone ? '⚠️' : '🚨';
+  const nameClass = isZone ? 'alert-name-zone' : 'alert-name';
+  const metaInfo = isZone
+    ? `Source: ${alert.job_id||'?'} · Frame: ${alert.frame_num||'?'}`
+    : `Similarity: ${(alert.similarity*100).toFixed(1)}% · Source: ${alert.job_id||'?'} · Frame: ${alert.frame_num||'?'}`;
+  const row = document.createElement('div'); row.className = 'alert-row';
+  row.innerHTML = `
+    <div style="font-size:20px">${icon}</div>
+    <div style="flex:1">
+      <div class="${nameClass}">${alert.person_name}</div>
+      <div class="alert-meta">${metaInfo}</div>
+    </div>
+    <div style="font-size:11px;color:#333">${alert.timestamp||'just now'}</div>`;
+  feed.insertBefore(row, feed.firstChild);
+  // Keep max 50 alerts in DOM
+  while (feed.children.length > 51) feed.removeChild(feed.lastChild);
+}
+
+async function loadAlerts() {
+  document.getElementById('tabBtn3').textContent = '🚨 Alerts';
+  const r = await fetch(`${BASE}/alerts`);
+  const alerts = await r.json();
+  const feed = document.getElementById('alertsFeed');
+  feed.innerHTML = '';
+  if (!alerts.length) {
+    feed.innerHTML = '<div style="padding:2rem;text-align:center;color:#333;font-size:13px" id="alertEmpty">No alerts yet — system is monitoring</div>';
+    return;
+  }
+  const emptyDiv = document.createElement('div');
+  emptyDiv.id = 'alertEmpty'; emptyDiv.style.display = 'none'; feed.appendChild(emptyDiv);
+  alerts.forEach(prependAlert);
+}
+
+async function clearAlerts() {
+  await fetch(`${BASE}/alerts/clear`, {method:'POST'});
+  await loadAlerts();
+}
+</script>
+</body>
+</html>

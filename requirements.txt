@@ -1,0 +1,25 @@
+# YOLOv11m Human Detection - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Deep Learning - PyTorch with CUDA
+# Choose ONE based on your CUDA version (check with: nvidia-smi)
+# CUDA 12.6 (recommended for CUDA 12.7):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+# CUDA 11.8:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# CPU only (slow):
+#   pip install torch torchvision
+
+# YOLO & Computer Vision
+ultralytics>=8.0.0
+opencv-python>=4.8.0
+insightface>=0.7.3
+onnxruntime>=1.16.0
+imageio-ffmpeg>=0.4.9
+
+# Web Server
+flask>=2.3.0
+flask-cors>=4.0.0
+
+# Utilities
+numpy>=1.24.0
