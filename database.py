@@ -1,7 +1,9 @@
 import sqlite3
 import json
 import os
+import numpy as np
 from pathlib import Path
+from typing import Optional
 
 DB_PATH = Path("data") / "enrolled.db"
 
@@ -39,7 +41,7 @@ def init_db():
             similarity REAL NOT NULL,
             job_id TEXT,
             frame_num INTEGER,
-            alert_type TEXT DEFAULT 'blocklist'
+            alert_type TEXT DEFAULT 'restricted_entry'
         )
     ''')
     
@@ -47,7 +49,7 @@ def init_db():
     cursor.execute("PRAGMA table_info(alerts)")
     columns = [row[1] for row in cursor.fetchall()]
     if "alert_type" not in columns:
-        cursor.execute("ALTER TABLE alerts ADD COLUMN alert_type TEXT DEFAULT 'blocklist'")
+        cursor.execute("ALTER TABLE alerts ADD COLUMN alert_type TEXT DEFAULT 'restricted_entry'")
     
     conn.commit()
     conn.close()
@@ -100,12 +102,10 @@ def get_all_embeddings():
     rows = cursor.fetchall()
     conn.close()
     
-    import numpy as np
-    
     results = []
     for row in rows:
         embedding_blob = row[3]
-        embedding = np.frombuffer(embedding_blob, dtype=np.float32)
+        embedding = np.frombuffer(embedding_blob, dtype=np.float32).copy()
         results.append({
             "id": row[0],
             "name": row[1],
@@ -113,6 +113,37 @@ def get_all_embeddings():
             "embedding": embedding
         })
     return results
+
+
+def find_match(query_embedding, threshold=0.35):
+    """
+    Compare query embedding against all stored embeddings.
+    
+    Returns:
+        Best-matching dict {person_id, name, status, similarity}
+        or None if no match exceeds the threshold.
+    """
+    enrolled = get_all_embeddings()
+    if not enrolled:
+        return None
+
+    best_sim = -1.0
+    best_match = None
+
+    for entry in enrolled:
+        sim = float(np.dot(query_embedding, entry["embedding"]))
+        if sim > best_sim:
+            best_sim = sim
+            best_match = entry
+
+    if best_sim >= threshold:
+        return {
+            "person_id": best_match["id"],
+            "name":      best_match["name"],
+            "status":    best_match["status"],
+            "similarity": best_sim,
+        }
+    return None
 
 def delete_person(person_id):
     conn = sqlite3.connect(DB_PATH)
@@ -137,7 +168,7 @@ def delete_person(person_id):
         except OSError:
             pass
 
-def save_alert(person_name, similarity, job_id=None, frame_num=None, alert_type="blocklist"):
+def save_alert(person_name, similarity, job_id=None, frame_num=None, alert_type="restricted_entry"):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
@@ -186,7 +217,7 @@ def get_recent_alerts(limit=50):
             "similarity": row[3],
             "job_id": row[4],
             "frame_num": row[5],
-            "alert_type": row[6] if len(row) > 6 else "blocklist"
+            "alert_type": row[6] if len(row) > 6 else "restricted_entry"
         })
     return alerts
 

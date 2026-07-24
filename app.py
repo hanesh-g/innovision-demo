@@ -52,6 +52,8 @@ ALERT_BOX_COLOR = (0, 0, 255)      # red - blocklisted person
 ALERT_LABEL_BG  = (0, 0, 200)
 AUTH_BOX_COLOR  = (255, 144, 30)   # blue - authorized person
 AUTH_LABEL_BG   = (200, 100, 0)
+INTRUDER_BOX_COLOR = (200, 0, 200) # purple/magenta - unknown intruder
+INTRUDER_LABEL_BG  = (150, 0, 150)
 ZONE_LINE_COLOR = (0, 220, 255)    
 TEXT_COLOR      = (255, 255, 255)
 
@@ -205,11 +207,12 @@ def reencode_to_h264(input_path, output_path):
 # ============================================================
 
 def process_frame(frame, conf_thresh, iou_thresh, zones, thickness, font_scale,
-                  job_id=None, frame_num=None, faces_override=None):
+                  job_id=None, frame_num=None, faces_override=None,
+                  intruder_detection=True):
     """
     Run YOLO, run face detection, draw boxes, trigger alerts.
     faces_override: if provided (list), skip pipeline.detect_faces and use these instead.
-                    Allows caller to cache face detections for efficiency (e.g. webcam).
+    intruder_detection: if True, fire alerts for unknown/unrecognized faces.
     """
     # 1. Detect Persons
     detections = pipeline.detect_persons(frame, conf_thresh, iou_thresh)
@@ -247,6 +250,7 @@ def process_frame(frame, conf_thresh, iou_thresh, zones, thickness, font_scale,
         matched_name = None
         matched_status = None
         matched_sim = 0.0
+        face_found = False  # Track whether a face was detected for this person
         
         # Find if any detected face falls inside this person's bounding box
         for face in faces:
@@ -254,31 +258,45 @@ def process_frame(frame, conf_thresh, iou_thresh, zones, thickness, font_scale,
             # Center of face
             fcx, fcy = (fx1+fx2)/2, (fy1+fy2)/2
             if x1 <= fcx <= x2 and y1 <= fcy <= y2:
+                face_found = True
                 # Face belongs to this person
                 match, sim = pipeline.match_face(face.normed_embedding, _enrolled_faces_cache)
+                matched_sim = sim
                 if match:
                     matched_name = match["name"]
                     matched_status = match["status"]
-                    matched_sim = sim
-                    break
+                break
         
-        # Determine styling
+        # Determine styling and alerts
         b_color = BOX_COLOR
         l_bg = LABEL_BG
         
         if matched_status == "blocklisted":
             b_color = ALERT_BOX_COLOR
             l_bg = ALERT_LABEL_BG
-            # Trigger Alert (debounced)
-            alert_key = f"blocklist:{matched_name}"
+            # Trigger Restricted Entry Alert (debounced)
+            alert_key = f"restricted_entry:{matched_name}"
             if _should_alert(alert_key):
                 alert_dict = database.save_alert(matched_name, matched_sim, job_id, frame_num,
-                                                 alert_type="blocklist")
+                                                 alert_type="restricted_entry")
                 push_alert_to_subscribers(alert_dict)
             
         elif matched_status == "authorized":
             b_color = AUTH_BOX_COLOR
             l_bg = AUTH_LABEL_BG
+
+        elif face_found and matched_name is None and intruder_detection:
+            # Face was detected but didn't match anyone → INTRUDER
+            b_color = INTRUDER_BOX_COLOR
+            l_bg = INTRUDER_LABEL_BG
+            alert_key = f"intruder:{x1}_{y1}"  # Debounce by approximate position
+            if _should_alert(alert_key):
+                alert_dict = database.save_alert(
+                    "Unknown Intruder", matched_sim, job_id, frame_num,
+                    alert_type="intruder"
+                )
+                push_alert_to_subscribers(alert_dict)
+
         elif zone_name:
             b_color = ZONE_BOX_COLOR
             l_bg = ZONE_LABEL_BG
@@ -294,6 +312,8 @@ def process_frame(frame, conf_thresh, iou_thresh, zones, thickness, font_scale,
         label = f"Person {conf:.2f}"
         if matched_name:
             label = f"{matched_name} {matched_sim:.2f}"
+        elif face_found and matched_name is None and intruder_detection:
+            label = f"INTRUDER {matched_sim:.2f}"
         elif zone_name:
             label += f" | {zone_name}"
             
@@ -362,7 +382,7 @@ def health():
 # FLASK ROUTES - PROCESSING (BACKGROUND JOB)
 # ============================================================
 
-def _process_worker(job_id, input_path, conf_thresh, iou_thresh, thickness, font_scale, zones, raw_path, output_path, coords_path):
+def _process_worker(job_id, input_path, conf_thresh, iou_thresh, thickness, font_scale, zones, raw_path, output_path, coords_path, intruder_detection=True):
     job = _jobs[job_id]
     cap = cv2.VideoCapture(str(input_path))
     if not cap.isOpened():
@@ -399,7 +419,8 @@ def _process_worker(job_id, input_path, conf_thresh, iou_thresh, thickness, font
         frame_num += 1
 
         frame, count, zone_counts, processed_dets = process_frame(
-            frame, conf_thresh, iou_thresh, zones, thickness, font_scale, job_id, frame_num
+            frame, conf_thresh, iou_thresh, zones, thickness, font_scale, job_id, frame_num,
+            intruder_detection=intruder_detection
         )
         frame = overlay_hud(frame, frame_num, total, count, zone_counts)
         
@@ -511,6 +532,8 @@ def process_start():
     except (json.JSONDecodeError, TypeError):
         zones_input = []
 
+    intruder_detection = request.form.get("intruder_detection", "1") == "1"
+
     job_id = str(uuid.uuid4())[:8]
     suffix = Path(file.filename).suffix or ".mp4"
     
@@ -547,7 +570,7 @@ def process_start():
     }
 
     t = threading.Thread(target=_process_worker, args=(
-        job_id, input_path, conf_thresh, iou_thresh, box_thick, font_scale, zones, raw_path, output_path, coords_path
+        job_id, input_path, conf_thresh, iou_thresh, box_thick, font_scale, zones, raw_path, output_path, coords_path, intruder_detection
     ))
     t.start()
     _jobs[job_id]['thread'] = t
@@ -631,7 +654,7 @@ def get_coords(job_id):
 
 _webcam_error = None  # Holds last webcam error message
 
-def _webcam_worker(conf, iou, thickness, font_scale, zones_input):
+def _webcam_worker(conf, iou, thickness, font_scale, zones_input, intruder_detection=True):
     """Unified webcam worker — uses the same process_frame as video processing."""
     global _webcam_running, _webcam_frame, _webcam_error
     _webcam_error = None
@@ -678,7 +701,8 @@ def _webcam_worker(conf, iou, thickness, font_scale, zones_input):
         frame, count, zone_counts, _ = process_frame(
             frame, conf, iou, zones, thickness, font_scale,
             job_id="WEBCAM", frame_num=frame_num,
-            faces_override=last_faces
+            faces_override=last_faces,
+            intruder_detection=intruder_detection
         )
         frame = overlay_hud(frame, frame_num, 0, count, zone_counts)
         
@@ -707,12 +731,14 @@ def webcam_start():
     except (json.JSONDecodeError, TypeError):
         zones_input = []
 
+    intruder_detection = request.form.get("intruder_detection", "1") == "1"
+
     _webcam_frame = None   # Clear stale frame from previous session
     _webcam_error = None   # Clear stale error
     _webcam_running = True
     _webcam_thread = threading.Thread(
         target=_webcam_worker,
-        args=(conf, iou, thickness, font_scale, zones_input),
+        args=(conf, iou, thickness, font_scale, zones_input, intruder_detection),
         daemon=True
     )
     _webcam_thread.start()
